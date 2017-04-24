@@ -20,9 +20,9 @@ now server 2 is essentially "deleted" from the map
 
 in every one of the 4 redis servers, we should have a key:
 
-server.config.current = "4.4.0.4"
-server.config.previous = "4.4.4.4"
-server.config.migration.status = 0 // 1 means in-progress, 2 means completed, 0 means not started yet
+servermap.current = "4.4.0.4"
+servermap.previous = "4.4.4.4"
+servermap.migration.status = 0 // 1 means in-progress, 2 means completed, 0 means not started yet
 
 now with these 2 keys, we can easily "remap" all the incoming keys to the correct server
 
@@ -30,7 +30,7 @@ when a http request is sent with a specific key look up
 1. the load balancer will randomly select a server based upon server.cofig.current, let's say server N
 2. look up the key at server N
 1) if the key exists, then we just fetch the key and done
-2) if the key does not exists, we look at server.config.previous, then try to find the key from the previous server
+2) if the key does not exists, we look at servermap.previous, then try to find the key from the previous server
 
 when a http request is generating a key update or key creation
 1. the load balancer will randomly select a server based upon server.cofig.current, let's say server N
@@ -38,33 +38,33 @@ when a http request is generating a key update or key creation
 
 when we add a new server with weight 4 to the server map, we should:
 1. for every one of the redis servers
-   update server.config.current to "4.4.0.4.4"
-   update server.config.previous to "4.4.0.4"
+   update servermap.current to "4.4.0.4.4"
+   update servermap.previous to "4.4.0.4"
 
 At anytime, we should have only 1 migration goingon.
 
 We can have a background migration process, when the process get started, what it will do is:
 1. check every one of the redis servers in the map
-   examine the server.config.migration.status value 
+   examine the servermap.migration.status value 
    a) if it is 0 (not started) or 2 (completed)
       go to step 2
    b) stop and wait
 2. for every one of the redis servers in the map
-   get the value of sever.config.current, set it to server.config.previous
-   set server.config.current to the new server map string
-   set server.config.migration.status to 1
-   loop through all the keys except server.config.*, for each key do:
-   1) find out the from_server(previous server, the old server) and to_server(current server, the new server) of the key based upon server.config.previous and server.config.current
+   get the value of sever.config.current, set it to servermap.previous
+   set servermap.current to the new server map string
+   set servermap.migration.status to 1
+   loop through all the keys except servermap.*, for each key do:
+   1) find out the from_server(previous server, the old server) and to_server(current server, the new server) of the key based upon servermap.previous and servermap.current
    2) a) if the key already exists in the to_server, just delet the key in the from_server
       b) if the key does not exists in the to_server, 
          copy the value of the key in the from_server,
          set it in the to_server,
          delete the key in the from_server
     when the loop is completed
-    set server.config.migration.status = 2 (completed)
-    set server.config.previous = the value of server.config.current
+    set servermap.migration.status = 2 (completed)
+    set servermap.previous = the value of servermap.current
 
-In the migration process above, we can see there is only one sever actively serving the incoming server at anytime
+In the migration process above, we can see there is only one sever actively serving the incoming key at anytime
 
 Now if we have a another migration process started before the previous migration process started, we simply can not do it.
 We should try our best to prevent 2 migration processes working at the same time.
