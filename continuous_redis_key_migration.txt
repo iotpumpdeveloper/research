@@ -66,5 +66,5 @@ We can have a background migration process, when the process get started, what i
 
 In the migration process above, we can see there is only one sever actively serving the incoming key at anytime
 
-Now if we have a another migration process started before the previous migration process started, we simply can not do it.
+Now if we have a another migration process started before the previous migration process completes, we simply can not do it.
 We should try our best to prevent 2 migration processes working at the same time.
