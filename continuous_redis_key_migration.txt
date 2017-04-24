@@ -22,6 +22,7 @@ in every one of the 4 redis servers, we should have a key:
 
 server.config.current = "4.4.0.4"
 server.config.previous = "4.4.4.4"
+server.config.migration.status = 0 // 1 means in-progress, 2 means completed, 0 means not started yet
 
 now with these 2 keys, we can easily "remap" all the incoming keys to the correct server
 
@@ -40,3 +41,30 @@ when we add a new server with weight 4 to the server map, we should:
    update server.config.current to "4.4.0.4.4"
    update server.config.previous to "4.4.0.4"
 
+At anytime, we should have only 1 migration goingon.
+
+We can have a background migration process, when the process get started, what it will do is:
+1. check every one of the redis servers in the map
+   examine the server.config.migration.status value 
+   a) if it is 0 (not started) or 2 (completed)
+      go to step 2
+   b) stop and wait
+2. for every one of the redis servers in the map
+   get the value of sever.config.current, set it to server.config.previous
+   set server.config.current to the new server map string
+   set server.config.migration.status to 1
+   loop through all the keys except server.config.*, for each key do:
+   1) find out the from_server(previous server, the old server) and to_server(current server, the new server) of the key based upon server.config.previous and server.config.current
+   2) a) if the key already exists in the to_server, just delet the key in the from_server
+      b) if the key does not exists in the to_server, 
+         copy the value of the key in the from_server,
+         set it in the to_server,
+         delete the key in the from_server
+    when the loop is completed
+    set server.config.migration.status = 2 (completed)
+    set server.config.previous = the value of server.config.current
+
+In the migration process above, we can see there is only one sever actively serving the incoming server at anytime
+
+Now if we have a another migration process started before the previous migration process started, we simply can not do it.
+We should try our best to prevent 2 migration processes working at the same time.
