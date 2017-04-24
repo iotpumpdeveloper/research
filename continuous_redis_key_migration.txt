@@ -1,0 +1,42 @@
+* This research is focusing on how to continously migrate keys among different redis servers without downtime.
+
+* Let's say we have 4 redis servers, each with weight:
+
+server index    weight
+0     4
+1     4
+2     4
+3     4
+
+we can represent this server map with one string:
+
+4.4.4.4
+
+when we wants to make server 2 idle and make sure it is not receiving any incoming keys, we can just do:
+
+4.4.0.4
+
+now server 2 is essentially "deleted" from the map
+
+in every one of the 4 redis servers, we should have a key:
+
+server.config.current = "4.4.0.4"
+server.config.previous = "4.4.4.4"
+
+now with these 2 keys, we can easily "remap" all the incoming keys to the correct server
+
+when a http request is sent with a specific key look up
+1. the load balancer will randomly select a server based upon server.cofig.current, let's say server N
+2. look up the key at server N
+1) if the key exists, then we just fetch the key and done
+2) if the key does not exists, we look at server.config.previous, then try to find the key from the previous server
+
+when a http request is generating a key update or key creation
+1. the load balancer will randomly select a server based upon server.cofig.current, let's say server N
+2. set the key at server N
+
+when we add a new server with weight 4 to the server map, we should:
+1. for every one of the redis servers
+   update server.config.current to "4.4.0.4.4"
+   update server.config.previous to "4.4.0.4"
+
